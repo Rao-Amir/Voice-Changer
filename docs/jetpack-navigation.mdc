@@ -1,0 +1,342 @@
+# Jetpack Navigation Guide
+
+This document explains how Jetpack Navigation is implemented in the MVVM Compose Android project and provides examples of how to use it effectively.
+
+## Overview
+
+Jetpack Navigation is a framework that helps you implement navigation in your Android app, especially when dealing with fragments, activities, or in this case, Compose destinations. The project uses Jetpack Navigation with Compose to manage navigation between different screens.
+
+```mermaid
+flowchart TD
+    NavHost[NavHost]
+    NavController[NavController]
+    AppDestination[AppDestination]
+    Route[Screen Routes]
+    ViewModel[ViewModel]
+    UI[UI Components]
+    
+    NavController --> NavHost
+    AppDestination --> NavHost
+    NavHost --> Route
+    ViewModel --navigation events--> NavController
+    UI --user actions--> NavController
+    
+    subgraph "Navigation Structure"
+        NavHost
+        NavController
+        AppDestination
+    end
+    
+    subgraph "Screen Implementation"
+        Route
+        ViewModel
+        UI
+    end
+```
+
+## Key Components
+
+### 1. AppDestination
+
+The `AppDestination` sealed class defines all navigation destinations in the app. Each destination is a singleton object that extends `AppDestination` and provides the route path and any arguments needed.
+
+```kotlin
+sealed class AppDestination(val route: String = "") {
+    open val arguments: List<NamedNavArgument> = emptyList()
+    open var destination: String = route
+    open var parcelableArgument: Pair<String, Any?> = "" to null
+
+    object Splash: AppDestination("splash")
+    object Up : AppDestination()
+    object Home : AppDestination("home")
+    object Detail: AppDestination("detail") {
+        fun addParcel(value: Pokemon) = apply {
+            parcelableArgument = KeyPokemon to value
+        }
+    }
+    
+    // Example with path parameters
+    object Second : AppDestination("second/{$KeyId}") {
+        override val arguments = listOf(
+            navArgument(KeyId) { type = NavType.StringType }
+        )
+
+        fun createRoute(id: String) = apply {
+            destination = "second/$id"
+        }
+    }
+}
+```
+
+### 2. AppNavigation
+
+The `AppNavigation` composable sets up the navigation host and defines the navigation graph.
+
+```kotlin
+@Composable
+fun AppNavigation(
+    navController: NavHostController,
+    modifier: Modifier = Modifier
+) {
+    NavHost(
+        navController = navController,
+        startDestination = AppDestination.Splash.destination,
+        modifier = modifier
+    ) {
+        composable(AppDestination.Splash) {
+            SplashRoute { destination ->
+                navController.navigate(destination)
+            }
+        }
+        composable(AppDestination.Home) {
+            HomeRoute(
+                navigator = { destination ->
+                    navController.navigate(destination, destination.parcelableArgument)
+                }
+            )
+        }
+        composable(AppDestination.Detail) {
+            DetailRoute(
+                pokemon = navController.previousBackStackEntry?.savedStateHandle?.get<Pokemon>(
+                    KeyPokemon
+                )
+            )
+        }
+    }
+}
+```
+
+### 3. BaseViewModel Navigation
+
+The `BaseViewModel` class provides a foundation for navigation from ViewModels:
+
+```kotlin
+abstract class BaseViewModel : ViewModel() {
+    // Other fields and methods...
+    
+    protected val _navigator = MutableSharedFlow<AppDestination>()
+    val navigator: SharedFlow<AppDestination> = _navigator
+    
+    // Method to emit navigation events
+    protected suspend fun navigateTo(destination: AppDestination) {
+        _navigator.emit(destination)
+    }
+}
+```
+
+## Navigation Patterns
+
+### 1. Screen to Screen Navigation
+
+#### Direct navigation from composable:
+
+```kotlin
+@Composable
+fun MyScreen(
+    onNavigateToDetail: (Pokemon) -> Unit
+) {
+    Button(onClick = { onNavigateToDetail(pokemon) }) {
+        Text("View Details")
+    }
+}
+
+// Usage in a route composable
+@Composable
+fun MyRoute(
+    navigator: (AppDestination) -> Unit
+) {
+    MyScreen(
+        onNavigateToDetail = { pokemon ->
+            navigator(AppDestination.Detail.addParcel(pokemon))
+        }
+    )
+}
+```
+
+### 2. ViewModel-driven Navigation
+
+```kotlin
+@HiltViewModel
+class MyViewModel @Inject constructor() : BaseViewModel() {
+    
+    fun onItemClicked(pokemon: Pokemon) {
+        viewModelScope.launch {
+            navigateTo(AppDestination.Detail.addParcel(pokemon))
+        }
+    }
+}
+
+// Usage in a composable
+@Composable
+fun MyRoute(
+    viewModel: MyViewModel = hiltViewModel(),
+    navigator: (AppDestination) -> Unit
+) {
+    // Collect navigation events from ViewModel
+    viewModel.navigator.collectAsEffect {
+        navigator(it)
+    }
+    
+    MyScreen(
+        onItemClick = viewModel::onItemClicked
+    )
+}
+```
+
+### 3. Passing Arguments
+
+#### Path parameters:
+
+```kotlin
+// Define destination with arguments
+object DetailWithId : AppDestination("detail/{$KeyId}") {
+    override val arguments = listOf(
+        navArgument(KeyId) { type = NavType.StringType }
+    )
+
+    fun createRoute(id: String) = apply {
+        destination = "detail/$id"
+    }
+}
+
+// Navigation with path parameter
+navigator(AppDestination.DetailWithId.createRoute("123"))
+
+// Access argument in the destination screen
+@Composable
+fun DetailRoute(
+    navBackStackEntry: NavBackStackEntry
+) {
+    val id = navBackStackEntry.arguments?.getString(KeyId)
+    // Use id parameter
+}
+```
+
+#### Parcelable objects:
+
+```kotlin
+// Passing complex objects
+navigator(AppDestination.Detail.addParcel(pokemon))
+
+// Accessing in destination
+@Composable
+fun DetailRoute(
+    pokemon: Pokemon?
+) {
+    // Use pokemon object
+}
+```
+
+## Implementation Example
+
+### Adding a New Screen
+
+1. Define the destination:
+
+```kotlin
+// Add to AppDestination.kt
+object Settings : AppDestination("settings")
+```
+
+2. Create the screen and route:
+
+```kotlin
+// SettingsScreen.kt
+@Composable
+fun SettingsRoute(
+    navigator: (AppDestination) -> Unit
+) {
+    SettingsScreen(
+        onBackClick = { navigator(AppDestination.Up) }
+    )
+}
+
+@Composable
+fun SettingsScreen(
+    onBackClick: () -> Unit
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Settings") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        // Screen content
+    }
+}
+```
+
+3. Add to the navigation graph:
+
+```kotlin
+@Composable
+fun AppNavigation(
+    navController: NavHostController,
+    modifier: Modifier = Modifier
+) {
+    NavHost(
+        navController = navController,
+        startDestination = AppDestination.Splash.destination,
+        modifier = modifier
+    ) {
+        // Existing destinations...
+        
+        composable(AppDestination.Settings) {
+            SettingsRoute { destination ->
+                navController.navigate(destination)
+            }
+        }
+    }
+}
+```
+
+### Navigating with Deep Links
+
+To support deep links in your application:
+
+```kotlin
+@Composable
+fun AppNavigation(
+    navController: NavHostController,
+    modifier: Modifier = Modifier
+) {
+    NavHost(
+        navController = navController,
+        startDestination = AppDestination.Splash.destination,
+        modifier = modifier
+    ) {
+        composable(
+            destination = AppDestination.Detail,
+            deepLinks = listOf(
+                navDeepLink { 
+                    uriPattern = "myapp://detail/{id}" 
+                }
+            )
+        ) { backStackEntry ->
+            val id = backStackEntry.arguments?.getString("id")
+            DetailRoute(id = id)
+        }
+    }
+}
+```
+
+## Best Practices
+
+1. **Keep navigation logic separate** from UI components
+2. **Use the BaseViewModel** for consistent navigation handling
+3. **Define all routes** in the AppDestination sealed class
+4. **Pass minimal data** between destinations, use IDs where possible
+5. **Handle back navigation** consistently (use AppDestination.Up)
+6. **Avoid nested navigation** when possible for simpler navigation stacks
+7. **Consider single-activity architecture** with Compose Navigation
+8. **Test navigation flows** with automated tests
+description:
+globs:
+alwaysApply: true
+---

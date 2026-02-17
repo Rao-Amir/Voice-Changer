@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_wave">
+
+    <target android:name="bar1" android:animation="@animator/bar_animator1" />
+    <target android:name="bar2" android:animation="@animator/bar_animator2" />
+    <target android:name="bar3" android:animation="@animator/bar_animator3" />
+</animated-vector>

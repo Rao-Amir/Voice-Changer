@@ -1,0 +1,119 @@
+# Cập Nhật Công Nghệ Dựa Trên Now in Android
+
+Dựa theo mẫu ứng dụng Now in Android của Google, base source code đã được cập nhật với những công nghệ và pattern mới nhất. Dưới đây là tổng hợp các cải tiến đã được áp dụng:
+
+## 1. Navigation Hiện Đại
+
+- **Type-Safe Navigation**: Sử dụng extension function để tạo các API navigation có tính type-safe
+- **Feature-Based Navigation**: Mỗi feature quản lý route và navigation của riêng nó
+- **Navigation Arguments**: Cải thiện cách truyền và nhận arguments giữa các destinations
+
+```mermaid
+flowchart TD
+    A[AppNavHost] --> B[Feature Navigation Modules]
+    B --> C[NavGraphBuilder Extensions]
+    B --> D[NavController Extensions]
+    B --> E[Navigation Args]
+    E --> F[ViewModels]
+```
+
+## 2. UI State Management
+
+- **UiState Pattern**: Triển khai `UiState<T>` sealed interface để quản lý các trạng thái UI một cách nhất quán
+- **StateFlow Integration**: Sử dụng StateFlow với Lifecycle-aware collection cho UI state
+- **Error Handling**: Xử lý lỗi thống nhất trong toàn bộ ứng dụng
+
+```kotlin
+sealed interface UiState<out T> {
+    data object Loading : UiState<Nothing>
+    data class Error(val error: Throwable) : UiState<Nothing>
+    data class Success<T>(val data: T) : UiState<T>
+}
+```
+
+## 3. Performance & Startup
+
+- **App Startup**: Sử dụng androidx.startup để khởi tạo component hiệu quả
+- **Baseline Profiles**: Cải thiện thời gian khởi động ứng dụng
+- **Tracing**: Giám sát hiệu suất với Trace API
+- **StrictMode**: Phát hiện các hoạt động chậm trên main thread
+
+## 4. Material 3 & Theming
+
+- **Dynamic Colors**: Hỗ trợ Material You với dynamic color trên Android 12+
+- **Custom Color Palette**: Hệ thống design token linh hoạt với CompositionLocal
+- **Dark Theme**: Hỗ trợ dark mode đầy đủ
+
+## 5. Responsive Design
+
+- **Adaptive Layouts**: Components thích nghi với nhiều kích thước màn hình
+- **List-Detail Pattern**: Layout động thay đổi giữa các kích thước màn hình khác nhau
+
+```kotlin
+@Composable
+fun AdaptiveContentLayout(
+    compact: @Composable () -> Unit,
+    medium: @Composable () -> Unit = compact,
+    expanded: @Composable () -> Unit = medium,
+)
+```
+
+## 6. Dependency Injection Cải Tiến
+
+- **Component Providers**: Sử dụng Provider pattern trong Hilt để tối ưu lazy initialization
+- **Testability**: Thiết kế để dễ dàng mock các dependency trong unit test
+- **Module Organization**: Tổ chức các module theo functionality
+
+## 7. Coroutines & Flow
+
+- **SharingStarted.WhileSubscribed**: Sử dụng shared flow với timeout để tối ưu bộ nhớ
+- **Flow Transform Extensions**: Các extension function hữu ích để làm việc với Flow
+- **Error Handling**: Xử lý lỗi thống nhất trong Flow
+
+```kotlin
+protected fun <T> Flow<T>.stateWithLoading(
+    initialValue: T,
+    started: SharingStarted = SharingStarted.WhileSubscribed(5.seconds)
+): StateFlow<T> = this
+    .loading()
+    .catch { e -> 
+        Timber.e(e, "Error in stateWithLoading")
+        _error.value = e
+    }
+    .stateIn(
+        scope = viewModelScope,
+        started = started,
+        initialValue = initialValue
+    )
+```
+
+## 8. Splash Screen API
+
+- **Modern Splash Screen**: Sử dụng API splash screen mới của Android 12
+- **Splash Screen Retention**: Giữ splash screen hiển thị cho đến khi app sẵn sàng
+- **Edge-to-Edge**: Giao diện edge-to-edge với SystemBarStyle
+
+## 9. Tối Ưu Hóa Logging & Debugging
+
+- **Timber Integration**: Logging cấu trúc với Timber
+- **Debug Logging**: Logging tự động chỉ trong debug builds
+- **Error Tracking**: Ghi lại lỗi một cách nhất quán
+
+## 10. Image Loading
+
+- **Coil Integration**: Tích hợp Coil với Hilt dependency injection
+- **SVG Support**: Hỗ trợ SVG trong Coil
+- **Crossfade Animations**: Hiệu ứng crossfade khi load hình ảnh
+
+## Lợi Ích
+
+- **Hiệu suất cao hơn**: Startup nhanh hơn, sử dụng bộ nhớ hiệu quả
+- **Mã nguồn dễ bảo trì**: Các pattern hiện đại làm code dễ đọc và mở rộng
+- **Trải nghiệm người dùng tốt hơn**: UI mượt mà và adaptive với nhiều kích thước màn hình
+- **Dễ dàng test**: Architecture thiết kế để unit test và UI test đơn giản hơn
+- **Tuân theo best practice**: Áp dụng các pattern được khuyến nghị từ Google
+
+description:
+globs:
+alwaysApply: true
+---

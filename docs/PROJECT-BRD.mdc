@@ -1,0 +1,150 @@
+# MVVM Compose Android Project Documentation
+
+## Project Overview
+
+This project serves as a base Android application implementing modern Android development practices. It's built with Jetpack Compose and follows the MVVM (Model-View-ViewModel) architecture pattern, incorporating a rich set of libraries and tools to accelerate Android application development.
+
+## Technical Specifications
+
+- **Minimum SDK level**: 24 (Android 7.0 Nougat)
+- **Target audience**: Android app developers looking for a well-structured base project
+
+## Architecture Overview
+
+The project follows the MVVM (Model-View-ViewModel) architecture pattern with a clear separation of concerns:
+
+```mermaid
+flowchart TD
+    subgraph UI Layer
+        View[View/UI - Composables]
+        Theme[Design System]
+    end
+    
+    subgraph Logic Layer
+        VM[ViewModels]
+    end
+    
+    subgraph Data Layer
+        Repo[Repositories]
+        subgraph Local
+            DS[DataStore]
+            DB[(Room Database)]
+        end
+        subgraph Remote
+            API[API Services]
+            INT[Interceptors]
+        end
+    end
+    
+    subgraph DI
+        HILT[Hilt Modules]
+    end
+    
+    View --> VM
+    VM --> Repo
+    Repo --> Local
+    Repo --> Remote
+    HILT --> VM
+    HILT --> Repo
+    HILT --> Local
+    HILT --> Remote
+    Theme --> View
+```
+
+## Project Structure
+
+The project follows a feature-based package structure with clear separation between layers:
+
+```mermaid
+flowchart TD
+    App[App]
+    Core[Core]
+    Data[Data]
+    DI[Dependency Injection]
+    Design[Design System]
+    Feature[Features]
+    Model[Models]
+    Utils[Utilities]
+    
+    App --> Core
+    App --> Data
+    App --> DI
+    App --> Design
+    App --> Feature
+    App --> Model
+    App --> Utils
+    
+    subgraph Core
+        Base[Base Classes]
+        Nav[Navigation]
+        Network[Network Handling]
+    end
+    
+    subgraph Data
+        Local[Local Storage]
+        Remote[Remote APIs]
+        Repo[Repositories]
+    end
+    
+    subgraph Design
+        Comp[Components]
+        Theme[Theming]
+    end
+    
+    subgraph Feature
+        Home[Home Feature]
+        Detail[Detail Feature]
+        Splash[Splash Screen]
+    end
+```
+
+## Key Components
+
+### Core Components
+- **Base Classes**: Abstract implementations for Screens, ViewModels, and UI States
+- **Navigation**: Compose-based navigation system with destinations and routes
+- **Network**: Error handling, connectivity monitoring, and response mapping
+
+### Data Layer
+- **Local Storage**: DataStore for preferences
+- **Remote**: API service interfaces with Retrofit
+- **Repository**: Implementation of the repository pattern for data access
+
+### Design System
+- **Components**: Reusable UI components (buttons, backgrounds, popups, loading indicators)
+- **Theming**: Material3 implementation with colors, typography, and background styles
+
+### Features
+- **Home**: Main screen with a list of Pokémon
+- **Detail**: Detail view for a selected Pokémon
+- **Splash**: Initial loading screen
+
+### Dependency Injection
+Hilt modules organized by functionality:
+- **AppModule**: Application-level dependencies
+- **CoroutinesModule**: Coroutine dispatchers and scopes
+- **NetworkModule**: Retrofit, OkHttp, and API services
+- **RepositoryModule**: Repository implementations
+- **StorageModule**: Local storage dependencies
+
+## Technology Stack
+
+The project leverages a modern Android tech stack:
+
+- **UI**: Jetpack Compose with Material3 design system
+- **Architecture**: MVVM with Repository pattern
+- **Asynchronous**: Kotlin Coroutines with Flow
+- **Dependency Injection**: Hilt
+- **Networking**: Retrofit2 with OkHttp3
+- **JSON Parsing**: Moshi
+- **Image Loading**: Coil
+- **Logging**: Timber
+- **Performance**: Baseline Profiles for improved app startup
+
+## Build System
+
+The project uses Kotlin DSL for Gradle build scripts with version catalogs for dependency management. It implements convention plugins for better organization of build logic.
+description:
+globs:
+alwaysApply: true
+---

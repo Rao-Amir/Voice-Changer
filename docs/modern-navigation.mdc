@@ -1,0 +1,155 @@
+# Modern Jetpack Navigation Implementation
+
+This document explains the updated navigation system implemented in the project based on the latest Jetpack Navigation best practices and the approach used in Google's Now in Android sample app.
+
+## Overview
+
+The new navigation system follows a modular, type-safe approach with clear separation of concerns. Each feature defines its own navigation components, making the codebase more maintainable and scalable.
+
+```mermaid
+flowchart TD
+    NavHost[AppNavHost]
+    NavController[NavController]
+    
+    subgraph "Feature A"
+        RouteA[Feature Routes]
+        NavBuilderA[Navigation Builder]
+        NavFunctionA[Navigation Functions]
+    end
+    
+    subgraph "Feature B"
+        RouteB[Feature Routes]
+        NavBuilderB[Navigation Builder]
+        NavFunctionB[Navigation Functions]
+    end
+    
+    NavHost --> NavBuilderA
+    NavHost --> NavBuilderB
+    NavController --> NavFunctionA
+    NavController --> NavFunctionB
+```
+
+## Key Components
+
+### 1. Feature-specific Navigation Files
+
+Each feature has its own navigation module (typically in a `navigation` package) containing:
+
+- **Route constants**: String constants defining the route
+- **Navigation functions**: Extension functions on NavController for navigation
+- **Screen builder functions**: Extension functions on NavGraphBuilder to add the screen
+- **Argument classes**: Classes to safely extract navigation arguments
+
+```kotlin
+// Example for a feature
+const val featureRoute = "feature_route"
+const val argName = "argument_name"
+
+// Navigation function
+fun NavController.navigateToFeature(arg: String) {
+    navigate("$featureRoute/$arg")
+}
+
+// Screen builder
+fun NavGraphBuilder.featureScreen(onBackClick: () -> Unit) {
+    composable(
+        route = "$featureRoute/{$argName}",
+        arguments = listOf(navArgument(argName) { type = NavType.StringType })
+    ) {
+        FeatureRoute(onBackClick = onBackClick)
+    }
+}
+
+// Argument class
+class FeatureArgs(val arg: String) {
+    companion object {
+        fun fromSavedStateHandle(savedStateHandle: SavedStateHandle): FeatureArgs {
+            val arg = checkNotNull(savedStateHandle[argName])
+            return FeatureArgs(arg.toString())
+        }
+    }
+}
+```
+
+### 2. Central Navigation Host
+
+A central `AppNavHost` composable that assembles all feature navigation components:
+
+```kotlin
+@Composable
+fun AppNavHost(
+    modifier: Modifier = Modifier,
+    navController: NavHostController = rememberNavController(),
+    startDestination: String = splashRoute
+) {
+    NavHost(
+        navController = navController,
+        startDestination = startDestination,
+        modifier = modifier
+    ) {
+        // Feature screens
+        featureAScreen(
+            onNavigateToB = { navController.navigateToFeatureB() }
+        )
+        featureBScreen(
+            onBackClick = { navController.navigateUp() }
+        )
+    }
+}
+```
+
+### 3. Type-safe ViewModel Arguments
+
+ViewModels can safely extract navigation arguments from the SavedStateHandle:
+
+```kotlin
+@HiltViewModel
+class FeatureViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle
+) : ViewModel() {
+    init {
+        val args = FeatureArgs.fromSavedStateHandle(savedStateHandle)
+        // Use args...
+    }
+}
+```
+
+## Advantages Over Previous Approach
+
+1. **Type safety**: Eliminates string-based navigation errors
+2. **Modularity**: Each feature owns its navigation logic
+3. **Testability**: Easier to write tests for navigation logic
+4. **Maintainability**: Clear organization makes code easier to understand
+5. **Scalability**: Adding new features doesn't complicate the central navigation
+6. **Separation of concerns**: Navigation logic is isolated from UI components
+
+## Implementation Example
+
+The project implements this modern navigation approach for all screens:
+
+1. **Splash screen**: Simple navigation with a completion callback
+2. **Home screen**: Navigation with UI callbacks for user actions
+3. **Detail screen**: Navigation with complex arguments (Pokemon object)
+
+## Best Practices
+
+1. **Keep navigation logic in the feature package**: Each feature should own its navigation components
+2. **Use extension functions**: Extension functions on NavController and NavGraphBuilder improve readability
+3. **Use SavedStateHandle in ViewModels**: Extract arguments in the ViewModel, not in composables
+4. **Minimize arguments**: Pass IDs rather than entire objects when possible
+5. **Add navigation testing**: Write tests for navigation actions and argument passing
+
+## Migration Strategy
+
+The project uses a hybrid approach to maintain backward compatibility while migrating:
+
+1. Old `AppDestination` sealed class is still supported
+2. New type-safe navigation functions work alongside it
+3. Screens can receive arguments from both systems
+4. Each feature can be migrated independently
+
+This approach allows for incremental migration without breaking existing functionality.
+description:
+globs:
+alwaysApply: true
+---

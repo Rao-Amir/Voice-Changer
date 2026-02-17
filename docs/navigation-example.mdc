@@ -1,0 +1,636 @@
+# Complete Navigation Example
+
+This document provides a comprehensive example of implementing Jetpack Navigation in the MVVM Compose project.
+
+## Example: Creating a News Feature with Navigation
+
+Let's create a complete example of a News feature with navigation between a news list and news detail screens.
+
+### 1. Define Navigation Destinations
+
+First, add news destinations to the `AppDestination` sealed class:
+
+```kotlin
+// In AppDestination.kt
+const val KeyNewsId = "newsId"
+const val KeyNewsItem = "KeyNewsItem"
+
+sealed class AppDestination(val route: String = "") {
+    // Existing destinations...
+
+    object NewsList : AppDestination("news")
+    
+    object NewsDetail : AppDestination("news/detail") {
+        fun addParcel(newsItem: NewsItem) = apply {
+            parcelableArgument = KeyNewsItem to newsItem
+        }
+    }
+    
+    object NewsDetailWithId : AppDestination("news/detail/{$KeyNewsId}") {
+        override val arguments = listOf(
+            navArgument(KeyNewsId) { type = NavType.StringType }
+        )
+        
+        fun createRoute(newsId: String) = apply {
+            destination = "news/detail/$newsId"
+        }
+    }
+}
+```
+
+### 2. Create the Model Class
+
+```kotlin
+// NewsItem.kt
+package com.pixelzlab.app.model.entity
+
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
+
+@Parcelize
+data class NewsItem(
+    val id: String,
+    val title: String,
+    val content: String,
+    val imageUrl: String,
+    val publishDate: String,
+    val author: String
+) : Parcelable
+```
+
+### 3. Create a Repository
+
+```kotlin
+// NewsRepository.kt
+package com.pixelzlab.app.data.remote.repository
+
+import com.pixelzlab.app.model.entity.NewsItem
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class NewsRepository @Inject constructor() {
+    
+    // In a real app, this would come from a remote API
+    private val dummyNews = listOf(
+        NewsItem(
+            id = "1",
+            title = "Android 15 Released",
+            content = "Google has released Android 15 with new features...",
+            imageUrl = "https://example.com/android15.jpg",
+            publishDate = "2023-08-15",
+            author = "John Doe"
+        ),
+        NewsItem(
+            id = "2",
+            title = "Jetpack Compose 2.0",
+            content = "Jetpack Compose 2.0 brings performance improvements...",
+            imageUrl = "https://example.com/compose.jpg",
+            publishDate = "2023-07-20",
+            author = "Jane Smith"
+        )
+    )
+    
+    fun getNewsList(): Flow<List<NewsItem>> = flow {
+        // Simulate network delay
+        kotlinx.coroutines.delay(1000)
+        emit(dummyNews)
+    }
+    
+    fun getNewsById(newsId: String): Flow<NewsItem?> = flow {
+        kotlinx.coroutines.delay(500)
+        emit(dummyNews.find { it.id == newsId })
+    }
+}
+```
+
+### 4. Create ViewModels
+
+```kotlin
+// NewsListViewModel.kt
+package com.pixelzlab.app.feature.news
+
+import androidx.lifecycle.viewModelScope
+import com.pixelzlab.app.core.base.BaseViewModel
+import com.pixelzlab.app.core.navigation.AppDestination
+import com.pixelzlab.app.data.remote.repository.NewsRepository
+import com.pixelzlab.app.di.IoDispatcher
+import com.pixelzlab.app.model.entity.NewsItem
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class NewsListViewModel @Inject constructor(
+    private val newsRepository: NewsRepository,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+) : BaseViewModel() {
+    
+    private val _newsList = MutableStateFlow<List<NewsItem>>(emptyList())
+    val newsList = _newsList.asStateFlow()
+    
+    init {
+        fetchNews()
+    }
+    
+    private fun fetchNews() {
+        newsRepository.getNewsList()
+            .loading()
+            .onEach { 
+                _newsList.emit(it) 
+            }
+            .flowOn(ioDispatcher)
+            .catch { e -> _error.emit(e) }
+            .launchIn(viewModelScope)
+    }
+    
+    fun onNewsItemClick(newsItem: NewsItem) {
+        viewModelScope.launch {
+            // Navigate using object passing
+            _navigator.emit(AppDestination.NewsDetail.addParcel(newsItem))
+            
+            // Alternatively, navigate with just the ID
+            // _navigator.emit(AppDestination.NewsDetailWithId.createRoute(newsItem.id))
+        }
+    }
+}
+```
+
+```kotlin
+// NewsDetailViewModel.kt
+package com.pixelzlab.app.feature.news
+
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
+import com.pixelzlab.app.core.base.BaseViewModel
+import com.pixelzlab.app.core.navigation.KeyNewsId
+import com.pixelzlab.app.data.remote.repository.NewsRepository
+import com.pixelzlab.app.di.IoDispatcher
+import com.pixelzlab.app.model.entity.NewsItem
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import javax.inject.Inject
+
+@HiltViewModel
+class NewsDetailViewModel @Inject constructor(
+    private val newsRepository: NewsRepository,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    savedStateHandle: SavedStateHandle
+) : BaseViewModel() {
+    
+    private val _newsItem = MutableStateFlow<NewsItem?>(null)
+    val newsItem = _newsItem.asStateFlow()
+    
+    init {
+        // Check if we have a news ID from the route
+        val newsId = savedStateHandle.get<String>(KeyNewsId)
+        if (newsId != null) {
+            fetchNewsById(newsId)
+        }
+    }
+    
+    private fun fetchNewsById(newsId: String) {
+        newsRepository.getNewsById(newsId)
+            .loading()
+            .onEach { 
+                _newsItem.emit(it) 
+            }
+            .flowOn(ioDispatcher)
+            .catch { e -> _error.emit(e) }
+            .launchIn(viewModelScope)
+    }
+}
+```
+
+### 5. Create UI Screens
+
+```kotlin
+// NewsListScreen.kt
+package com.pixelzlab.app.feature.news
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.pixelzlab.app.core.navigation.AppDestination
+import com.pixelzlab.app.model.entity.NewsItem
+import com.pixelzlab.app.utils.extension.collectAsEffect
+
+@Composable
+fun NewsListRoute(
+    viewModel: NewsListViewModel = hiltViewModel(),
+    navigator: (AppDestination) -> Unit
+) {
+    val newsList by viewModel.newsList.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val error by viewModel.error.collectAsStateWithLifecycle()
+    
+    // Observe navigation events
+    viewModel.navigator.collectAsEffect {
+        navigator(it)
+    }
+    
+    NewsListScreen(
+        newsList = newsList,
+        isLoading = isLoading,
+        onNewsItemClick = viewModel::onNewsItemClick
+    )
+}
+
+@Composable
+fun NewsListScreen(
+    newsList: List<NewsItem>,
+    isLoading: Boolean,
+    onNewsItemClick: (NewsItem) -> Unit
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("News") }
+            )
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            if (isLoading && newsList.isEmpty()) {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(16.dp)
+                ) {
+                    items(newsList.size) { index ->
+                        NewsItem(
+                            newsItem = newsList[index],
+                            onItemClick = onNewsItemClick
+                        )
+                        if (index < newsList.size - 1) {
+                            Divider(
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun NewsItem(
+    newsItem: NewsItem,
+    onItemClick: (NewsItem) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onItemClick(newsItem) }
+            .padding(vertical = 8.dp)
+    ) {
+        Text(
+            text = newsItem.title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = newsItem.content,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = newsItem.author,
+                style = MaterialTheme.typography.bodySmall
+            )
+            Text(
+                text = newsItem.publishDate,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+    }
+}
+```
+
+```kotlin
+// NewsDetailScreen.kt
+package com.pixelzlab.app.feature.news
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
+import com.pixelzlab.app.core.navigation.AppDestination
+import com.pixelzlab.app.model.entity.NewsItem
+
+@Composable
+fun NewsDetailRoute(
+    viewModel: NewsDetailViewModel = hiltViewModel(),
+    navigator: (AppDestination) -> Unit,
+    newsItem: NewsItem? = null
+) {
+    // If we received a NewsItem directly, use it
+    // Otherwise use the one from ViewModel (loaded by ID)
+    val loadedNewsItem by viewModel.newsItem.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    
+    val displayNewsItem = newsItem ?: loadedNewsItem
+    
+    NewsDetailScreen(
+        newsItem = displayNewsItem,
+        isLoading = isLoading,
+        onBackClick = { navigator(AppDestination.Up) }
+    )
+}
+
+@Composable
+fun NewsDetailScreen(
+    newsItem: NewsItem?,
+    isLoading: Boolean,
+    onBackClick: () -> Unit
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(newsItem?.title ?: "News Detail") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            if (isLoading || newsItem == null) {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    AsyncImage(
+                        model = newsItem.imageUrl,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp),
+                        contentScale = ContentScale.Crop
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = newsItem.title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "By ${newsItem.author}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = newsItem.publishDate,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = newsItem.content,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+            }
+        }
+    }
+}
+```
+
+### 6. Update the Navigation Graph
+
+```kotlin
+// In AppNavigation.kt
+@Composable
+fun AppNavigation(
+    navController: NavHostController,
+    modifier: Modifier = Modifier
+) {
+    NavHost(
+        navController = navController,
+        startDestination = AppDestination.Splash.destination,
+        modifier = modifier
+    ) {
+        // Existing destinations...
+        
+        composable(AppDestination.NewsList) {
+            NewsListRoute(
+                navigator = { destination ->
+                    navController.navigate(destination, destination.parcelableArgument)
+                }
+            )
+        }
+        
+        // Route with direct object passing
+        composable(AppDestination.NewsDetail) {
+            NewsDetailRoute(
+                navigator = { destination ->
+                    navController.navigate(destination)
+                },
+                newsItem = navController.previousBackStackEntry?.savedStateHandle?.get<NewsItem>(
+                    KeyNewsItem
+                )
+            )
+        }
+        
+        // Alternative route with ID parameter
+        composable(AppDestination.NewsDetailWithId) { backStackEntry ->
+            NewsDetailRoute(
+                navigator = { destination ->
+                    navController.navigate(destination)
+                }
+                // No need to pass newsItem, the ViewModel will load it from the route parameter
+            )
+        }
+    }
+}
+```
+
+### 7. Adding to Main Navigation
+
+To add the news feature to the main app navigation, you can add an entry point in the appropriate place:
+
+```kotlin
+// Example: Adding a button in HomeScreen.kt
+@Composable
+fun HomeScreen(
+    // existing parameters
+    onNewsButtonClick: () -> Unit
+) {
+    Scaffold(
+        // existing scaffold setup
+        floatingActionButton = {
+            FloatingActionButton(onClick = onNewsButtonClick) {
+                Icon(
+                    imageVector = Icons.Default.Newspaper,
+                    contentDescription = "News"
+                )
+            }
+        }
+    ) {
+        // existing content
+    }
+}
+
+// In HomeRoute
+@Composable
+fun HomeRoute(
+    viewModel: HomeViewModel = hiltViewModel(),
+    navigator: (AppDestination) -> Unit
+) {
+    // existing code
+    
+    HomeScreen(
+        // existing parameters
+        onNewsButtonClick = { navigator(AppDestination.NewsList) }
+    )
+}
+```
+
+## Navigation Animation Example
+
+You can enhance the navigation experience with animations:
+
+```kotlin
+@Composable
+fun AppNavigation(
+    navController: NavHostController,
+    modifier: Modifier = Modifier
+) {
+    NavHost(
+        navController = navController,
+        startDestination = AppDestination.Splash.destination,
+        enterTransition = { 
+            slideInHorizontally(initialOffsetX = { it }) + fadeIn() 
+        },
+        exitTransition = { 
+            slideOutHorizontally(targetOffsetX = { -it }) + fadeOut() 
+        },
+        popEnterTransition = { 
+            slideInHorizontally(initialOffsetX = { -it }) + fadeIn() 
+        },
+        popExitTransition = { 
+            slideOutHorizontally(targetOffsetX = { it }) + fadeOut() 
+        },
+        modifier = modifier
+    ) {
+        // Destinations...
+    }
+}
+```
+
+## Testing Navigation
+
+Here's a simple test for the NewsListViewModel navigation functionality:
+
+```kotlin
+@RunWith(AndroidJUnit4::class)
+class NewsListViewModelTest {
+
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+    
+    private lateinit var viewModel: NewsListViewModel
+    private lateinit var mockRepository: NewsRepository
+    
+    @Before
+    fun setup() {
+        mockRepository = mock(NewsRepository::class.java)
+        viewModel = NewsListViewModel(mockRepository, TestCoroutineDispatcher())
+    }
+    
+    @Test
+    fun `when news item clicked, navigator should emit correct destination`() = runTest {
+        // Given
+        val testNewsItem = NewsItem("1", "Test", "Content", "url", "2023", "Author")
+        val navigatorEvents = mutableListOf<AppDestination>()
+        val job = launch {
+            viewModel.navigator.collect { navigatorEvents.add(it) }
+        }
+        
+        // When
+        viewModel.onNewsItemClick(testNewsItem)
+        
+        // Then
+        assertEquals(1, navigatorEvents.size)
+        val destination = navigatorEvents[0] as AppDestination.NewsDetail
+        assertEquals(KeyNewsItem to testNewsItem, destination.parcelableArgument)
+        
+        job.cancel()
+    }
+}
+```
+
+This example demonstrates a complete implementation of navigation in the MVVM Compose project with proper separation of concerns.
+description:
+globs:
+alwaysApply: true
+---

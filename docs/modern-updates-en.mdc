@@ -1,0 +1,119 @@
+# Technology Updates Based on Now in Android
+
+Based on Google's Now in Android sample app, the base source code has been updated with the latest technologies and patterns. Below is a summary of the improvements that have been applied:
+
+## 1. Modern Navigation
+
+- **Type-Safe Navigation**: Using extension functions to create type-safe navigation APIs
+- **Feature-Based Navigation**: Each feature manages its own routes and navigation
+- **Navigation Arguments**: Improved method of passing and receiving arguments between destinations
+
+```mermaid
+flowchart TD
+    A[AppNavHost] --> B[Feature Navigation Modules]
+    B --> C[NavGraphBuilder Extensions]
+    B --> D[NavController Extensions]
+    B --> E[Navigation Args]
+    E --> F[ViewModels]
+```
+
+## 2. UI State Management
+
+- **UiState Pattern**: Implementation of `UiState<T>` sealed interface for consistent UI state management
+- **StateFlow Integration**: Using StateFlow with lifecycle-aware collection for UI state
+- **Error Handling**: Consistent error handling throughout the application
+
+```kotlin
+sealed interface UiState<out T> {
+    data object Loading : UiState<Nothing>
+    data class Error(val error: Throwable) : UiState<Nothing>
+    data class Success<T>(val data: T) : UiState<T>
+}
+```
+
+## 3. Performance & Startup
+
+- **App Startup**: Using androidx.startup for efficient component initialization
+- **Baseline Profiles**: Improving application startup time
+- **Tracing**: Monitoring performance with Trace API
+- **StrictMode**: Detecting slow operations on the main thread
+
+## 4. Material 3 & Theming
+
+- **Dynamic Colors**: Supporting Material You with dynamic colors on Android 12+
+- **Custom Color Palette**: Flexible design token system with CompositionLocal
+- **Dark Theme**: Full support for dark mode
+
+## 5. Responsive Design
+
+- **Adaptive Layouts**: Components adapt to multiple screen sizes
+- **List-Detail Pattern**: Dynamic layouts that change between different screen sizes
+
+```kotlin
+@Composable
+fun AdaptiveContentLayout(
+    compact: @Composable () -> Unit,
+    medium: @Composable () -> Unit = compact,
+    expanded: @Composable () -> Unit = medium,
+)
+```
+
+## 6. Improved Dependency Injection
+
+- **Component Providers**: Using Provider pattern in Hilt to optimize lazy initialization
+- **Testability**: Designed for easy mocking of dependencies in unit tests
+- **Module Organization**: Organizing modules by functionality
+
+## 7. Coroutines & Flow
+
+- **SharingStarted.WhileSubscribed**: Using shared flows with timeout to optimize memory
+- **Flow Transform Extensions**: Useful extension functions for working with Flow
+- **Error Handling**: Consistent error handling in Flow
+
+```kotlin
+protected fun <T> Flow<T>.stateWithLoading(
+    initialValue: T,
+    started: SharingStarted = SharingStarted.WhileSubscribed(5.seconds)
+): StateFlow<T> = this
+    .loading()
+    .catch { e -> 
+        Timber.e(e, "Error in stateWithLoading")
+        _error.value = e
+    }
+    .stateIn(
+        scope = viewModelScope,
+        started = started,
+        initialValue = initialValue
+    )
+```
+
+## 8. Splash Screen API
+
+- **Modern Splash Screen**: Using Android 12's new splash screen API
+- **Splash Screen Retention**: Keeping the splash screen visible until the app is ready
+- **Edge-to-Edge**: Edge-to-edge interface with SystemBarStyle
+
+## 9. Optimized Logging & Debugging
+
+- **Timber Integration**: Structured logging with Timber
+- **Debug Logging**: Automatic logging only in debug builds
+- **Error Tracking**: Consistent error recording
+
+## 10. Image Loading
+
+- **Coil Integration**: Integrating Coil with Hilt dependency injection
+- **SVG Support**: SVG support in Coil
+- **Crossfade Animations**: Crossfade effects when loading images
+
+## Benefits
+
+- **Higher Performance**: Faster startup, efficient memory usage
+- **Maintainable Code**: Modern patterns make code more readable and extensible
+- **Better User Experience**: Smooth and adaptive UI for various screen sizes
+- **Easy Testing**: Architecture designed for simpler unit and UI testing
+- **Following Best Practices**: Applying patterns recommended by Google
+
+description:
+globs:
+alwaysApply: true
+---

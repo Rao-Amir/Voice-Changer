@@ -1,0 +1,136 @@
+# Project Development Rules
+
+## Code Organization
+
+### Package Structure
+- Organize code into feature-based packages
+- Follow the MVVM architecture pattern consistently
+- Maintain clear separation between UI, ViewModel, and Data layers
+
+```mermaid
+flowchart TD
+    UI[UI Layer]
+    VM[ViewModel Layer]
+    Data[Data Layer]
+    
+    UI --> VM
+    VM --> Data
+    
+    subgraph "UI Package Structure"
+        Feature[feature/]
+        Screen[FeatureScreen.kt]
+        Components[Components/*.kt]
+    end
+    
+    subgraph "ViewModel Package Structure"
+        VMFile[FeatureViewModel.kt]
+        State[UiState.kt]
+    end
+    
+    subgraph "Data Package Structure"
+        Repository[repository/]
+        Models[model/]
+        Remote[remote/]
+        Local[local/]
+    end
+```
+
+## Coding Standards
+
+### General
+- Follow Kotlin style guide and best practices
+- Use explicit type declarations for public APIs and implicit for local variables
+- Keep functions small and focused on a single responsibility
+- Limit line length to 100 characters
+
+### Naming Conventions
+- **Classes**: UpperCamelCase (e.g., `HomeViewModel`, `PokemonRepository`)
+- **Functions**: lowerCamelCase (e.g., `getPokemonList()`, `saveUserPreference()`)
+- **Constants**: UPPER_SNAKE_CASE (e.g., `MAX_RETRY_COUNT`, `DEFAULT_TIMEOUT`)
+- **Variables**: lowerCamelCase (e.g., `pokemonList`, `userPreference`)
+- **Composable functions**: UpperCamelCase (e.g., `HomeScreen()`, `PokemonCard()`)
+
+### Compose UI Guidelines
+- Separate composables into small, reusable components
+- Follow the recommended Compose modifier order:
+  1. Layout (width, height, padding, etc.)
+  2. Appearance (background, border, etc.)
+  3. Interaction (clickable, focusable, etc.)
+- Use semantics for accessibility
+- Implement previews for all screen components using `@Preview` annotation
+- Use theme colors and dimensions from the design system
+
+### ViewModel Guidelines
+- Expose UI state using StateFlow
+- Handle events using functions that update the state
+- Use suspend functions for asynchronous operations
+- Implement proper error handling and loading states
+- Inherit from BaseViewModel for common functionality
+
+## Architecture Rules
+
+### UI Layer
+- Use Compose for all UI components
+- Implement the UI state pattern
+- Keep composables stateless when possible
+- Use unidirectional data flow (UDF)
+
+### ViewModel Layer
+- ViewModels should not directly access UI components
+- Use coroutine scopes provided by Hilt for background operations
+- Implement proper cancellation of ongoing operations
+- Use Channel for one-time events
+
+### Data Layer
+- Repositories should be the single source of truth
+- Abstract data sources behind interfaces
+- Implement proper caching strategies
+- Use domain models instead of entity models in the UI layer
+- Handle network errors gracefully
+
+## Dependency Injection
+- Use Hilt for all dependency injection
+- Define modules based on functionality
+- Provide interfaces rather than implementations
+- Use appropriate scopes (Singleton, ActivityScoped, etc.)
+
+## Testing
+- Write unit tests for ViewModels and Repositories
+- Use fake repositories for testing ViewModels
+- Write UI tests for critical user flows
+- Follow the Arrange-Act-Assert pattern
+
+## Performance Guidelines
+- Minimize composable recompositions
+- Use remember and derivedStateOf appropriately
+- Implement proper list optimizations
+- Follow Android performance best practices
+
+## Git Workflow
+- Use feature branches for new features
+- Create pull requests for code reviews
+- Write descriptive commit messages
+- Follow conventional commit format:
+  - feat: New feature
+  - fix: Bug fix
+  - docs: Documentation changes
+  - style: Formatting, missing semicolons, etc.
+  - refactor: Code changes that neither fix nor add
+  - test: Adding or refactoring tests
+  - chore: Updating build tasks, package manager configs, etc.
+
+## Documentation
+- Document public APIs with KDoc comments
+- Update README.md when adding significant features
+- Add code comments for complex algorithms or business logic
+- Keep documentation up-to-date with code changes
+
+## Third-Party Libraries
+- Consult the team before adding new dependencies
+- Prefer libraries from the project's existing ecosystem
+- Consider license compatibility for new libraries
+- Evaluate the maintenance status of libraries before adoption
+description:
+globs:
+alwaysApply: true
+---
